@@ -1,0 +1,10 @@
+.env
+
+# Build
+/dist/
+*.tsbuildinfo
+/node_modules/
+
+# Nix
+/result*
+/.direnv/

@@ -1,0 +1,21 @@
+{
+	"name": "discord-grok",
+	"version": "0.0.1",
+	"description": "grok for discord",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx src/index.ts",
+		"build": "tsc --build"
+	},
+	"dependencies": {
+		"ai": "^5.0.0",
+		"ai-sdk-provider-claude-code": "^1.0.0-beta.1",
+		"discord.js": "^14.21.0",
+		"dotenv": "^17.2.1"
+	},
+	"devDependencies": {
+		"@types/node": "^24.1.0",
+		"tsx": "^4.20.3",
+		"typescript": "^5.9.2"
+	}
+}

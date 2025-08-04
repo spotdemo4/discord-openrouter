@@ -1,0 +1,15 @@
+# Ignore all files except YAML files
+*
+!**.yaml
+
+# Build
+/dist/
+/node_modules/
+
+# Nix
+/result*
+/.direnv/
+
+# Package Managers
+/package-lock.json
+/flake.lock
