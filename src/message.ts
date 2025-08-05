@@ -9,7 +9,7 @@ import {
 export async function respond(
 	client: Client<boolean>,
 	message: Message<boolean>,
-	model: LanguageModel,
+	router: LanguageModel,
 ) {
 	const context = await getContext(client, message);
 
@@ -22,7 +22,7 @@ export async function respond(
 	}
 
 	const result = await generateText({
-		model: model,
+		model: router,
 		messages: context,
 	});
 

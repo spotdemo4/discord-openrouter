@@ -8,8 +8,8 @@
 		"build": "tsc --build"
 	},
 	"dependencies": {
+		"@openrouter/ai-sdk-provider": "^1.0.0-beta.6",
 		"ai": "^5.0.0",
-		"ai-sdk-provider-claude-code": "^1.0.0-beta.1",
 		"discord.js": "^14.21.0",
 		"dotenv": "^17.2.1"
 	},
