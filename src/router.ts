@@ -13,6 +13,8 @@ const openrouter = createOpenRouter({
 	apiKey: process.env.OPENROUTER_API_KEY,
 });
 
+export type GenerateResult = NonNullable<Awaited<ReturnType<typeof generate>>>;
+
 export async function generate(user: User, messages: ModelMessage[]) {
 	if (!user.model) return;
 
@@ -23,14 +25,17 @@ export async function generate(user: User, messages: ModelMessage[]) {
 			system: user.system || "",
 		});
 
-		let response = result.text;
+		let text = result.text;
 
 		// strip thinking tags
-		if (response.includes("</think>")) {
-			response = response.split("</think>")[1] ?? response;
+		if (text.includes("</think>")) {
+			text = text.split("</think>")[1] ?? text;
 		}
 
-		return response.trim();
+		return {
+			text: text.trim(),
+			result: result,
+		};
 	} catch (error) {
 		console.error("Error generating text:", error);
 		console.log("Blacklisting model:", user.model.id);

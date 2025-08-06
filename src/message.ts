@@ -3,11 +3,14 @@ import {
 	ChannelType,
 	type Client,
 	type ClientUser,
+	ComponentType,
 	type Message,
+	MessageFlags,
 	TextChannel,
 } from "discord.js";
 import { getUser, type User } from "./database.js";
-import { generate } from "./router.js";
+import { models } from "./model.js";
+import { type GenerateResult, generate } from "./router.js";
 
 export async function respond(
 	client: Client<boolean>,
@@ -41,8 +44,8 @@ export async function respond(
 	}
 
 	// Generate the response
-	const text = await generate(user, context);
-	if (!text) {
+	const result = await generate(user, context);
+	if (!result) {
 		message.reply({
 			content:
 				"Sorry, I encountered an error while processing your request. Please try again.",
@@ -52,7 +55,7 @@ export async function respond(
 		return;
 	}
 
-	return await reply(message, text);
+	return await reply(message, result);
 }
 
 async function getContext(
@@ -189,59 +192,64 @@ async function formatMessage(
 	return m;
 }
 
-// async function openGraph(url: string) {
-// 	console.log(`fetching OpenGraph data for ${url}`);
-
-// 	const headers = new HeaderGenerator();
-
-// 	try {
-// 		const response = await axios.get(url, {
-// 			headers: headers.getHeaders(),
-// 		});
-// 		if (response.status !== 200) {
-// 			console.error(`failed to fetch ${url}: ${response.statusText}`);
-// 			return null;
-// 		}
-
-// 		console.log(response.data);
-
-// 		const $ = cheerio.load(response.data);
-// 		const title = $("meta[property='og:title']").attr("content") || "";
-// 		const description =
-// 			$("meta[property='og:description']").attr("content") || "";
-
-// 		if (title || description) {
-// 			console.log(`OpenGraph data for ${url}:`, { title, description });
-// 			return `${title}\n${description}`;
-// 		}
-// 	} catch (error) {
-// 		console.error(`error fetching ${url}:`, error);
-// 	}
-
-// 	return null;
-// }
-
-async function reply(message: Message<boolean>, content: string) {
-	if (content.length > 2000) {
+async function reply(message: Message<boolean>, gen: GenerateResult) {
+	if (gen.text.length > 1800) {
 		// Discord has a 2000 character limit for messages
-		// Split the content into chunks and send them separately
-		const limit = content.slice(0, 2000);
+		// I don't know what the size of the footer is so I just chunk at 1800 to be safe
+		const limit = gen.text.slice(0, 1800);
 		const breakIndex = limit.lastIndexOf("\n");
 
-		const start = breakIndex !== -1 ? content.slice(0, breakIndex) : limit;
+		const start = breakIndex !== -1 ? gen.text.slice(0, breakIndex) : limit;
 		const end =
-			breakIndex !== -1 ? content.slice(breakIndex) : content.slice(2000);
+			breakIndex !== -1 ? gen.text.slice(breakIndex) : gen.text.slice(1800);
 
 		const response = await message.reply({
-			content: start,
+			flags: MessageFlags.IsComponentsV2,
+			components: [
+				{
+					type: ComponentType.TextDisplay,
+					content: start,
+				},
+			],
 			allowedMentions: { repliedUser: true },
 		});
 
-		return await reply(response, end);
+		gen.text = end;
+		return await reply(response, gen);
+	}
+
+	const footer: string[] = [];
+	const model = models.find((m) => m.id === gen.result.response.modelId);
+	if (model) {
+		footer.push(`${model.name}`);
+	}
+	if (gen.result.totalUsage.inputTokens) {
+		footer.push(
+			`${gen.result.totalUsage.inputTokens.toLocaleString()} input tokens`,
+		);
+	}
+	if (gen.result.totalUsage.outputTokens) {
+		footer.push(
+			`${gen.result.totalUsage.outputTokens.toLocaleString()} output tokens`,
+		);
 	}
 
 	return await message.reply({
-		content,
+		flags: MessageFlags.IsComponentsV2,
+		components: [
+			{
+				type: ComponentType.TextDisplay,
+				content: gen.text,
+			},
+			{
+				type: ComponentType.Separator,
+				divider: true,
+			},
+			{
+				type: ComponentType.TextDisplay,
+				content: `-# ${footer.join(" - ")}`,
+			},
+		],
 		allowedMentions: { repliedUser: true },
 	});
 }
