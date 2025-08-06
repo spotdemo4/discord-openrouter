@@ -51,6 +51,7 @@
 
           # Actions
           action-validator
+          skopeo
           pkgs.nur.repos.trev.renovate
         ];
         shellHook = pkgs.nur.repos.trev.shellhook.ref;

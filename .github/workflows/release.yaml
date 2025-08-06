@@ -8,7 +8,16 @@ permissions:
   contents: read
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: DeterminateSystems/nix-installer-action@90bb610b90bf290cad97484ba341453bd1cbefea # v19
+
+      - run: nix flake check -L --accept-flake-config
+
   tag:
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -16,3 +25,45 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - run: git push origin "${{ github.ref_name }}:latest" --force
+
+  package:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: DeterminateSystems/nix-installer-action@90bb610b90bf290cad97484ba341453bd1cbefea # v19
+
+      - uses: nicknovitski/nix-develop@9be7cfb4b10451d3390a75dc18ad0465bed4932a # v1.2.1
+        with:
+          arguments: '--accept-flake-config'
+
+      - name: Get registry info
+        shell: bash
+        run: |
+          REGISTRY=$(basename ${{ github.server_url }})
+          REGISTRY=${REGISTRY,,}
+
+          NR=${{ github.repository }}
+          NR=${NR,,}
+          NAMESPACE="${NR%%/*}"
+          REPOSITORY="${NR##*/}"
+
+          TAG=${{ github.ref_name }}
+          VERSION=${TAG#v}
+
+          echo "REGISTRY=${REGISTRY}" >> $GITHUB_ENV
+          echo "NAMESPACE=${NAMESPACE}" >> $GITHUB_ENV
+          echo "REPOSITORY=${REPOSITORY}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Build & push images
+        run: |
+          nix build .#image --accept-flake-config
+
+          mkdir -p /etc/containers
+          curl -L -o /etc/containers/policy.json https://raw.githubusercontent.com/containers/image/main/default-policy.json
+
+          ./result | gzip --fast | skopeo copy \
+            --dest-creds=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+            docker-archive:/dev/stdin \
+            docker://$REGISTRY/$NAMESPACE/$REPOSITORY:$VERSION

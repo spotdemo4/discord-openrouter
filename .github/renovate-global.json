@@ -5,6 +5,6 @@
 	"onboarding": false,
 	"requireConfig": "optional",
 	"platform": "github",
-	"repositories": ["spotdemo4/discord-grok"],
+	"repositories": ["spotdemo4/discord-openrouter"],
 	"allowedCommands": ["npm install"]
 }
