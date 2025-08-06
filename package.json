@@ -1,6 +1,6 @@
 {
 	"name": "discord-grok",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "grok for discord",
 	"type": "module",
 	"scripts": {
