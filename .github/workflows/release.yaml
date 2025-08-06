@@ -60,9 +60,6 @@ jobs:
         run: |
           nix build .#image --accept-flake-config
 
-          mkdir -p /etc/containers
-          curl -L -o /etc/containers/policy.json https://raw.githubusercontent.com/containers/image/main/default-policy.json
-
           ./result | gzip --fast | skopeo copy \
             --dest-creds=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
             docker-archive:/dev/stdin \
