@@ -1,5 +1,5 @@
 {
-  description = "Discord Grok";
+  description = "discord openrouter client";
 
   nixConfig = {
     extra-substituters = [
@@ -59,7 +59,7 @@
 
       packages = rec {
         default = pkgs.buildNpmPackage (finalAttrs: {
-          pname = "discord-grok";
+          pname = "discord-openrouter";
           version = "0.0.4";
           src = ./.;
           nodejs = pkgs.nodejs_22;
@@ -77,16 +77,16 @@
           installPhase = ''
             runHook preInstall
 
-            mkdir -p $out/{bin,lib/node_modules/discord-grok}
-            cp -r dist node_modules package.json $out/lib/node_modules/discord-grok
+            mkdir -p $out/{bin,lib/node_modules/discord-openrouter}
+            cp -r dist node_modules package.json $out/lib/node_modules/discord-openrouter
 
-            makeWrapper "${pkgs.lib.getExe pkgs.nodejs_22}" "$out/bin/discord-grok" \
-              --add-flags "$out/lib/node_modules/discord-grok/dist/index.js"
+            makeWrapper "${pkgs.lib.getExe pkgs.nodejs_22}" "$out/bin/discord-openrouter" \
+              --add-flags "$out/lib/node_modules/discord-openrouter/dist/index.js"
 
             runHook postInstall
           '';
 
-          meta.mainProgram = "discord-grok";
+          meta.mainProgram = "discord-openrouter";
         });
 
         image = pkgs.dockerTools.streamLayeredImage {

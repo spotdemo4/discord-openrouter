@@ -1,7 +1,7 @@
 {
-	"name": "discord-grok",
+	"name": "discord-openrouter",
 	"version": "0.0.4",
-	"description": "grok for discord",
+	"description": "openrouter client for discord",
 	"type": "module",
 	"scripts": {
 		"dev": "tsx --no-warnings=ExperimentalWarning src/index.ts",
