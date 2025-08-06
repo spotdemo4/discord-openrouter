@@ -30,6 +30,8 @@ jobs:
   package:
     needs: check
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: DeterminateSystems/nix-installer-action@90bb610b90bf290cad97484ba341453bd1cbefea # v19
@@ -39,29 +41,14 @@ jobs:
         with:
           arguments: '--accept-flake-config'
 
-      - name: Get registry info
-        shell: bash
-        run: |
-          REGISTRY=ghcr.io
-
-          NR=${{ github.repository }}
-          NR=${NR,,}
-          NAMESPACE="${NR%%/*}"
-          REPOSITORY="${NR##*/}"
-
-          TAG=${{ github.ref_name }}
-          VERSION=${TAG#v}
-
-          echo "REGISTRY=${REGISTRY}" >> $GITHUB_ENV
-          echo "NAMESPACE=${NAMESPACE}" >> $GITHUB_ENV
-          echo "REPOSITORY=${REPOSITORY}" >> $GITHUB_ENV
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
-
       - name: Build & push images
         run: |
           nix build .#image --accept-flake-config
 
+          TAG=${{ github.ref_name }}
+          VERSION=${TAG#v}
+
           ./result | gzip --fast | skopeo copy \
             --dest-creds=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
             docker-archive:/dev/stdin \
-            docker://$REGISTRY/$NAMESPACE/$REPOSITORY:$VERSION
+            docker://ghcr.io/spotdemo4/discord-openrouter:$VERSION
