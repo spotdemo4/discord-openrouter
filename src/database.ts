@@ -2,7 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import { leastExpensive, type Model, models } from "./model.js";
 import { dedent } from "./util.js";
 
-export const database = new DatabaseSync("users.db");
+export const database = new DatabaseSync(
+	`${process.env.DB_PATH ?? "db.sqlite"}`,
+);
 
 // Make sure the users table exists
 database.exec(`
