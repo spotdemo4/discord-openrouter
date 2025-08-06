@@ -60,7 +60,7 @@
       packages = rec {
         default = pkgs.buildNpmPackage (finalAttrs: {
           pname = "discord-grok";
-          version = "0.0.1";
+          version = "0.0.2";
           src = ./.;
           nodejs = pkgs.nodejs_22;
 
