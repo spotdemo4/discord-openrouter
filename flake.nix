@@ -46,9 +46,6 @@
           biome
           prettier
 
-          # Claude
-          claude-code
-
           # Nix
           alejandra
 
@@ -83,7 +80,6 @@
             cp -r dist node_modules package.json $out/lib/node_modules/discord-grok
 
             makeWrapper "${pkgs.lib.getExe pkgs.nodejs_22}" "$out/bin/discord-grok" \
-              --prefix PATH : "${pkgs.claude-code}/bin" \
               --add-flags "$out/lib/node_modules/discord-grok/dist/index.js"
 
             runHook postInstall

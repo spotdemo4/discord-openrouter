@@ -1,54 +1,18 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { ChannelType, Client, Events, GatewayIntentBits } from "discord.js";
+import { ChannelType, Events, MessageFlags } from "discord.js";
 import dotenv from "dotenv";
+import { database, getUser } from "./database.js";
+import { client, registerSlashCommands } from "./discord.js";
 import { respond } from "./message.js";
-import { getModel } from "./models.js";
+import { models } from "./model.js";
+import { dedent } from "./util.js";
 
-dotenv.config();
-
-// Create a new client instance
-const client = new Client({
-	intents: [
-		GatewayIntentBits.Guilds,
-		GatewayIntentBits.GuildMessages,
-		GatewayIntentBits.MessageContent,
-	],
+dotenv.config({
+	quiet: true,
 });
 
-// Initialize the router
-if (!process.env.OPENROUTER_API_KEY) {
-	console.error("OPENROUTER_API_KEY is not set");
-	process.exit(1);
-}
-const openrouter = createOpenRouter({
-	apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-// Fetch the model
-const newModel = await getModel();
-if (!newModel) {
-	console.error("No free model found");
-	process.exit(1);
-}
-let model = newModel;
-let router = openrouter(model.id);
-
-// Periodically refresh the router
-setInterval(
-	async () => {
-		const newModel = await getModel();
-		if (newModel && newModel.id !== model.id) {
-			model = newModel;
-			router = openrouter(model.id);
-			console.log(`Switched to model ${model.name} (${model.id})`);
-		}
-	},
-	1 * 60 * 60 * 1000,
-); // Refresh every hour
-
-client.once(Events.ClientReady, (readyClient) => {
-	console.log(`Logged in as ${readyClient.user.tag}`);
-	console.log(`Using model ${model.name} (${model.id})`);
+client.once(Events.ClientReady, async (readyClient) => {
+	console.log(`logged in as ${readyClient.user.tag}`);
+	await registerSlashCommands();
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -57,7 +21,7 @@ client.on(Events.MessageCreate, async (message) => {
 
 	// Mentions the bot
 	if (message.mentions.users.has(client.user.id)) {
-		await respond(client, message, router);
+		await respond(client, message);
 		return;
 	}
 
@@ -66,7 +30,7 @@ client.on(Events.MessageCreate, async (message) => {
 		const referencedMessage = await message.fetchReference();
 		if (referencedMessage.author.id !== client.user.id) return; // Ignore if the referenced message is not from the bot
 
-		await respond(client, message, router);
+		await respond(client, message);
 		return;
 	}
 
@@ -75,7 +39,115 @@ client.on(Events.MessageCreate, async (message) => {
 		message.channel.type === ChannelType.PublicThread ||
 		message.channel.type === ChannelType.PrivateThread
 	) {
-		await respond(client, message, router);
+		await respond(client, message);
+		return;
+	}
+
+	// In a private message
+	if (message.channel.type === ChannelType.DM) {
+		await respond(client, message);
+		return;
+	}
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+	if (!interaction.isChatInputCommand()) return;
+
+	if (interaction.commandName === "model") {
+		const modelId = interaction.options.getString("model", true);
+		if (!modelId) {
+			await interaction.reply({
+				content: "You must specify a model.",
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		const model = models.find((m) => m.id === modelId);
+		if (!model) {
+			await interaction.reply({
+				content: `Sorry, that model is no longer available.`,
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		// Save model to database
+		const query = database.prepare(`
+			INSERT OR REPLACE INTO users (id, model) VALUES (?, ?);
+		`);
+		query.run(interaction.user.id, model.id);
+
+		await interaction.reply({
+			content: `You are now using **${model.name}** (${model.id})`,
+			flags: MessageFlags.Ephemeral,
+		});
+		return;
+	}
+
+	if (interaction.commandName === "system") {
+		const prompt = interaction.options.getString("prompt", true);
+		if (!prompt) {
+			await interaction.reply({
+				content: "You must provide a system prompt.",
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		// Save system prompt to database
+		const query = database.prepare(`
+			INSERT OR REPLACE INTO users (id, system) VALUES (?, ?);
+		`);
+		query.run(interaction.user.id, prompt);
+
+		await interaction.reply({
+			content: `Your system prompt has been set.`,
+			flags: MessageFlags.Ephemeral,
+		});
+		return;
+	}
+
+	if (interaction.commandName === "info") {
+		// get user's current model
+		const user = getUser(interaction.user.id);
+
+		if (!user.model) {
+			interaction.reply({
+				content: "No models are currently available.",
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		await interaction.reply({
+			content: dedent(`
+				**${user.model.name}**
+				-# last updated: ${new Date(user.model.created * 1000).toLocaleString()}
+				-# context: ${user.model.context_length.toLocaleString()} tokens
+				-# price: $${(parseFloat(user.model.pricing.prompt) * 1000000).toFixed(2)}/M input tokens, $${(parseFloat(user.model.pricing.completion) * 1000000).toFixed(2)}/M output tokens
+				-# modality: ${user.model.architecture.input_modalities.join(", ")} -> ${user.model.architecture.output_modalities.join(", ")}
+				${user.model.description}
+
+				**System Prompt**
+				${user?.system?.replace(/[\r\n]+/g, " ") || "not set"}
+			`),
+			flags: MessageFlags.Ephemeral,
+		});
+		return;
+	}
+
+	if (interaction.commandName === "reset") {
+		// Remove user from database
+		const query = database.prepare(`
+			DELETE FROM users WHERE id = ?;
+		`);
+		query.run(interaction.user.id);
+
+		await interaction.reply({
+			content: `Your settings have been reset to default.`,
+			flags: MessageFlags.Ephemeral,
+		});
 		return;
 	}
 });
