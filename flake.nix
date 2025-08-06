@@ -93,7 +93,10 @@
           name = "${default.pname}";
           tag = "${default.version}";
           created = "now";
-          contents = [default];
+          contents = with pkgs; [
+            default
+            dockerTools.caCertificates
+          ];
           config = {
             Cmd = [
               "${pkgs.lib.meta.getExe default}"

@@ -32,14 +32,9 @@ export function getUser(id: string) {
 		user.system = result.system.toString();
 	} else {
 		// Default system prompt
-		user.system = dedent(`
-			don't worry about formalities. don't use emojis. don't be cringe.
-			be as terse as possible while still conveying substantially all information relevant to any question. critique freely and avoid sycophancy.
-			don't be afraid to use profanity, especially to convey frustration or intensity.
-			don't be afraid to take a side in any discussion, especially if one side is clearly correct.
-			cite sources for your claims if possible.
-			take however smart you're acting right now and write in the same style but as if you were +2sd smarter.
-		`);
+		user.system = dedent(
+			process.env.DEFAULT_PROMPT ?? "You are a helpful assistant.",
+		);
 	}
 
 	return user;
