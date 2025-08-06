@@ -60,7 +60,7 @@
       packages = rec {
         default = pkgs.buildNpmPackage (finalAttrs: {
           pname = "discord-openrouter";
-          version = "0.0.4";
+          version = "0.0.5";
           src = ./.;
           nodejs = pkgs.nodejs_22;
 
