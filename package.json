@@ -1,6 +1,6 @@
 {
 	"name": "discord-openrouter",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"description": "openrouter client for discord",
 	"type": "module",
 	"scripts": {
