@@ -1,9 +1,15 @@
-import { ChannelType, Events, MessageFlags } from "discord.js";
+import {
+	ChannelType,
+	Events,
+	MessageFlags,
+	ThreadAutoArchiveDuration,
+} from "discord.js";
 import dotenv from "dotenv";
 import { database, getUser } from "./database.js";
-import { client, registerSlashCommands } from "./discord.js";
-import { respond } from "./message.js";
+import { client, getContext, registerSlashCommands } from "./discord.js";
+import { toAIMessage, toDiscordMessages } from "./message.js";
 import { models } from "./model.js";
+import { generate } from "./router.js";
 import { dedent } from "./util.js";
 
 dotenv.config({
@@ -18,34 +24,130 @@ client.once(Events.ClientReady, async (readyClient) => {
 client.on(Events.MessageCreate, async (message) => {
 	if (message.author.bot) return; // Ignore bot messages
 	if (!client.user) return; // Ensure the client user is available
+	const clientUser = client.user;
 
-	// Mentions the bot
-	if (message.mentions.users.has(client.user.id)) {
-		await respond(client, message);
-		return;
-	}
-
-	// A reply to the bot
-	if (message.reference) {
-		const referencedMessage = await message.fetchReference();
-		if (referencedMessage.author.id !== client.user.id) return; // Ignore if the referenced message is not from the bot
-
-		await respond(client, message);
-		return;
-	}
+	const user = getUser(message.author.id);
+	if (!user.model) return; // Ensure the user has a model available to use
 
 	// In a thread
 	if (
-		message.channel.type === ChannelType.PublicThread ||
-		message.channel.type === ChannelType.PrivateThread
+		message.channel.isThread() &&
+		message.channel.ownerId === client.user.id
 	) {
-		await respond(client, message);
+		console.log(`processing message from ${message.author.tag}`);
+
+		// Get all thread messages
+		let messages = await message.channel.messages.fetch({ limit: 100 });
+		messages = messages.reverse(); // Reverse the messages to get oldest first
+
+		// Format messages for AI
+		const session = messages
+			.map((msg) => toAIMessage(user, clientUser, msg))
+			.filter((msg) => msg !== undefined);
+		if (session.length === 0) {
+			await message.channel.send({
+				content: "Please provide some context.",
+				allowedMentions: { repliedUser: true },
+			});
+			return;
+		}
+
+		// Print the session for debug
+		session.forEach((msg) => {
+			console.log(`${msg.role}: ${JSON.stringify(msg.content)}`);
+		});
+
+		// Generate reponse
+		const response = await generate(user, session);
+		if (!response) {
+			await message.channel.send({
+				content:
+					"Sorry, I encountered an error while processing your request. Please try again.",
+				allowedMentions: { repliedUser: true },
+			});
+			return;
+		}
+
+		// Send reply in Discord thread
+		const payloads = await toDiscordMessages(response);
+		for (const payload of payloads) {
+			const reply = toAIMessage(
+				user,
+				clientUser,
+				await message.channel.send(payload),
+			);
+			if (!reply) continue; // Skip if the reply is undefined
+
+			// Push the reply to the session for context in future messages
+			session.push(reply);
+		}
+
+		// Rename the thread to match what is being discussed
+		if (response && message.channel.name.startsWith("Chat with")) {
+			const topic = await generate(
+				user,
+				session,
+				dedent(`You are a youtube video title generator. 
+					Generate a concise title for the following conversation. 
+					Please be as brief as possible, ideally only a couple words. 
+					Do not make it longer than 100 characters.`),
+			);
+			if (topic) {
+				await message.channel.setName(`${topic.text.slice(0, 100)}`);
+			}
+		}
+
 		return;
 	}
 
-	// In a private message
-	if (message.channel.type === ChannelType.DM) {
-		await respond(client, message);
+	// Is a DM, mentions the bot, or is a reply to the bot
+	if (
+		message.channel.type === ChannelType.DM ||
+		message.mentions.users.has(clientUser.id) ||
+		(message.reference &&
+			(await message.fetchReference()).author.id === clientUser.id)
+	) {
+		console.log(`processing message from ${message.author.tag}`);
+
+		// Get the full context of the message, including all replies
+		let messages = await getContext(message);
+		messages = messages.reverse(); // Reverse the messages to get oldest first
+
+		// Format messages for AI
+		const session = messages
+			.map((msg) => toAIMessage(user, clientUser, msg))
+			.filter((msg) => msg !== undefined);
+		if (session.length === 0) {
+			await message.reply({
+				content: "Please provide some context.",
+				allowedMentions: { repliedUser: true },
+			});
+			return;
+		}
+
+		// Print the session for debug
+		session.forEach((msg) => {
+			console.log(`${msg.role}: ${JSON.stringify(msg.content)}`);
+		});
+
+		// Generate reponse
+		const response = await generate(user, session);
+		if (!response) {
+			await message.reply({
+				content:
+					"Sorry, I encountered an error while processing your request. Please try again.",
+				allowedMentions: { repliedUser: true },
+			});
+			return;
+		}
+
+		// Send reply to Discord user
+		const payloads = await toDiscordMessages(response);
+		let lastMessage = message;
+		for (const payload of payloads) {
+			lastMessage = await lastMessage.reply(payload);
+		}
+
 		return;
 	}
 });
@@ -82,6 +184,44 @@ client.on(Events.InteractionCreate, async (interaction) => {
 			content: `You are now using **${model.name}** (${model.id})`,
 			flags: MessageFlags.Ephemeral,
 		});
+		return;
+	}
+
+	if (interaction.commandName === "chat") {
+		if (!interaction.channel) {
+			await interaction.reply({
+				content: "This command can only be used in a text channel.",
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+		if (interaction.channel.type !== ChannelType.GuildText) {
+			await interaction.reply({
+				content: "This command can only be used in a text channel.",
+				flags: MessageFlags.Ephemeral,
+			});
+			return;
+		}
+
+		// Start a new thread for the chat
+		const thread = await interaction.channel.threads.create({
+			name: `Chat with ${interaction.user.displayName}`,
+			autoArchiveDuration: ThreadAutoArchiveDuration.OneDay,
+			type: ChannelType.PrivateThread,
+			reason: "User started a chat",
+		});
+
+		// Join the thread
+		await thread.join();
+
+		// Invite the user to the thread
+		await thread.members.add(interaction.user.id);
+
+		await interaction.reply({
+			content: `Started a new chat thread: [${thread.name}](${thread.url})`,
+			flags: MessageFlags.Ephemeral,
+		});
+
 		return;
 	}
 

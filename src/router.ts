@@ -15,14 +15,16 @@ const openrouter = createOpenRouter({
 
 export type GenerateResult = NonNullable<Awaited<ReturnType<typeof generate>>>;
 
-export async function generate(user: User, messages: ModelMessage[]) {
-	if (!user.model) return;
-
+export async function generate(
+	user: User,
+	messages: ModelMessage[],
+	system?: string,
+) {
 	try {
 		const result = await generateText({
 			model: openrouter(user.model.id),
 			messages: messages,
-			system: user.system || "",
+			system: system ?? user.system ?? "",
 		});
 
 		let text = result.text;

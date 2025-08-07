@@ -30,6 +30,22 @@ function getPrice(model: Model) {
 	);
 }
 
+export function getModel(id: string | undefined) {
+	let model: Model | undefined;
+	if (id) {
+		model = models.find((m) => m.id === id);
+		if (model) return model;
+	}
+
+	model = models.find((m) => m.id === process.env.DEFAULT_MODEL);
+	if (model) return model;
+
+	const le = leastExpensive(models);
+	if (le) return le;
+
+	throw new Error("No models available");
+}
+
 async function getModels() {
 	try {
 		const response = await fetch(modelsURL, options);

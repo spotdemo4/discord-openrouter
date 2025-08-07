@@ -1,6 +1,7 @@
 import {
 	Client,
 	GatewayIntentBits,
+	type Message,
 	Partials,
 	REST,
 	Routes,
@@ -43,6 +44,9 @@ export async function registerSlashCommands() {
 					})),
 				),
 		);
+	const slashChat = new SlashCommandBuilder()
+		.setName("chat")
+		.setDescription("Start a thread for a chat");
 	const slashSystem = new SlashCommandBuilder()
 		.setName("system")
 		.setDescription("Set the system prompt")
@@ -63,10 +67,21 @@ export async function registerSlashCommands() {
 	await rest.put(Routes.applicationCommands(client.user.id), {
 		body: [
 			slashModel.toJSON(),
+			slashChat.toJSON(),
 			slashSystem.toJSON(),
 			slashInfo.toJSON(),
 			slashReset.toJSON(),
 		],
 	});
 	console.log("registered slash commands");
+}
+
+export async function getContext(message: Message<boolean>) {
+	let context: Message<boolean>[] = [];
+	if (message.reference) {
+		const referencedMessage = await message.fetchReference();
+		context = await getContext(referencedMessage);
+	}
+
+	return [message, ...context];
 }

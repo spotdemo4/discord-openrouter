@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { leastExpensive, type Model, models } from "./model.js";
+import { getModel, type Model } from "./model.js";
 import { dedent } from "./util.js";
 
 export const database = new DatabaseSync(
@@ -19,31 +19,28 @@ export function getUser(id: string) {
 	const query = database.prepare("SELECT * FROM users WHERE id = ?");
 	const result = query.get(id);
 
-	const user: User = {};
+	const model = getModel(result?.model?.toString());
 
-	if (result?.id) user.id = result.id.toString();
-
-	if (result?.model) {
-		user.model = models.find((m) => m.id === result.model);
-	} else {
-		// Default to the least expensive model if model is not found
-		user.model = leastExpensive(models);
-	}
-
+	let system: string;
 	if (result?.system) {
-		user.system = result.system.toString();
+		system = dedent(result.system.toString());
+	} else if (process.env.DEFAULT_PROMPT) {
+		system = dedent(process.env.DEFAULT_PROMPT);
 	} else {
-		// Default system prompt
-		user.system = dedent(
-			process.env.DEFAULT_PROMPT ?? "You are a helpful assistant.",
-		);
+		system = "You are a helpful assistant.";
 	}
+
+	const user: User = {
+		id: id,
+		model: model,
+		system: system,
+	};
 
 	return user;
 }
 
 export type User = {
 	id?: string;
-	model?: Model | undefined;
-	system?: string | undefined;
+	model: Model;
+	system: string;
 };
