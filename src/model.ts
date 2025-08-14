@@ -154,10 +154,9 @@ async function getModels() {
 				continue;
 			}
 
-			// Filter out OpenAI endpoints because they require a different API key
+			// Filter out endpoints that are not available
 			models[i].endpoints = json.data.endpoints.filter(
-				(endpoint) =>
-					endpoint.provider_name !== "OpenAI" && endpoint.status === 0,
+				(endpoint) => endpoint.status === 0,
 			);
 		}
 
