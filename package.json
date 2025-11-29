@@ -8,7 +8,7 @@
 		"build": "tsc --build"
 	},
 	"dependencies": {
-		"@openrouter/ai-sdk-provider": "^1.2.7",
+		"@openrouter/ai-sdk-provider": "^1.2.8",
 		"ai": "^5.0.104",
 		"discord.js": "^14.24.2",
 		"dotenv": "^17.2.3"
