@@ -9,7 +9,7 @@
 	},
 	"dependencies": {
 		"@openrouter/ai-sdk-provider": "^1.2.8",
-		"ai": "^5.0.104",
+		"ai": "^5.0.105",
 		"discord.js": "^14.25.1",
 		"dotenv": "^17.2.3"
 	},
